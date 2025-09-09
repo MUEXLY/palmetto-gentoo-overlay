@@ -37,7 +37,89 @@ S="${WORKDIR}/${MY_P}/cmake"
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64 ~x86"
-IUSE="cuda examples +extra gzip hip lammps-memalign mpi opencl +openmp +python test"
+IUSE="cuda examples +extra gzip hip lammps-memalign mpi opencl +openmp +python test oneapi"
+
+# Based on https://docs.lammps.org/Build_extras.html#kokkos
+KOKKOS_IUSE_HOST="
+	native
+	amdavx
+	armv80
+	armv81
+	armv8_thunderx
+	armv8_thunderx2
+	a64fx
+	armv9_grace
+	snb
+	hsw
+	bdw
+	icl
+	icx
+	skl
+	skx
+	knc
+	knl
+	spr
+	power8
+	power9
+	zen
+	zen2
+	zen3
+	zen4
+	zen5
+	riscv_sg2042
+	riscv_rva22v
+"
+
+KOKKOS_IUSE_GPU_NVIDIA="
+	kepler30
+	kepler32
+	kepler35
+	kepler37
+	maxwell50
+	maxwell52
+	maxwell53
+	pascal60
+	pascal61
+	volta70
+	volta72
+	turing75
+	ampere80
+	ampere86
+	ada89
+	hopper90
+	blackwell100
+	blackwell120
+"
+KOKKOS_IUSE_GPU_AMD="
+	amd_gfx906
+	amd_gfx908
+	amd_gfx90a
+	amd_gfx940
+	amd_gfx942
+	amd_gfx942_apu
+	amd_gfx1030
+	amd_gfx1100
+	amd_gfx1103
+"
+
+KOKKOS_IUSE_GPU_INTEL="
+	intel_gen
+	intel_dg1
+	intel_gen9
+	intel_gen11
+	intel_gen12lp
+	intel_xehp
+	intel_pvc
+	intel_dg2
+"
+
+KOKKOS_IUSE_HOST_EXPANDED=$(printf " kokkos_host_%s" ${KOKKOS_IUSE_HOST})
+KOKKOS_IUSE_GPU_NVIDIA_EXPANDED=$(printf " kokkos_gpu_%s" ${KOKKOS_IUSE_GPU_NVIDIA})
+KOKKOS_IUSE_GPU_AMD_EXPANDED=$(printf " kokkos_gpu_%s" ${KOKKOS_IUSE_GPU_AMD})
+KOKKOS_IUSE_GPU_INTEL_EXPANDED=$(printf " kokkos_gpu_%s" ${KOKKOS_IUSE_GPU_INTEL})
+IUSE+=" ${KOKKOS_IUSE_HOST_EXPANDED} ${KOKKOS_IUSE_GPU_NVIDIA_EXPANDED} ${KOKKOS_IUSE_GPU_AMD_EXPANDED} ${KOKKOS_IUSE_GPU_INTEL_EXPANDED} "
+
+
 # Requires write access to /dev/dri/renderD...
 RESTRICT="test"
 
@@ -61,6 +143,7 @@ RDEPEND="
 		dev-util/hip:=
 		sci-libs/hipCUB:=
 	)
+	oneapi? ( dev-libs/intel-compute-runtime:=[l0] )
 	dev-cpp/eigen:3
 	"
 	# Kokkos-3.5 not in tree atm
@@ -75,8 +158,26 @@ DEPEND="${RDEPEND}
 
 REQUIRED_USE="
 	python? ( ${PYTHON_REQUIRED_USE} )
-	?? ( cuda opencl hip )
+	?? ( cuda opencl hip oneapi )
+	?? ( ${KOKKOS_IUSE_HOST_EXPANDED} )
+	?? ( ${KOKKOS_IUSE_GPU_NVIDIA_EXPANDED} ${KOKKOS_IUSE_GPU_AMD_EXPANDED} ${KOKKOS_IUSE_GPU_INTEL_EXPANDED} )
 "
+
+# NVIDIA: require cuda OR hip
+for gpu in ${KOKKOS_IUSE_GPU_NVIDIA}; do
+	REQUIRED_USE+=" kokkos_gpu_${gpu}? ( || ( cuda hip ) )"
+done
+
+# AMD: require hip
+for gpu in ${KOKKOS_IUSE_GPU_AMD}; do
+	REQUIRED_USE+=" kokkos_gpu_${gpu}? ( hip )"
+done
+
+# Intel: require oneapi
+# In reality it requires sycl but there is no virtual/sycl yet
+for gpu in ${KOKKOS_IUSE_GPU_INTEL}; do
+	REQUIRED_USE+=" kokkos_gpu_${gpu}? ( oneapi )"
+done
 
 src_prepare() {
 	sed -i '/set(CMAKE_TUNE_DEFAULT.*-Xcudafe/s/^/# /' "${WORKDIR}/${MY_P}/cmake/CMakeLists.txt" || die
@@ -119,15 +220,8 @@ src_configure() {
 		-DPKG_KOKKOS=ON
 		-DKokkos_ENABLE_OPENMP=$(usex openmp)
 		-DKokkos_ENABLE_CUDA=$(usex cuda)
-		#-DKokkos_ARCH_KEPLER35=$(usex cuda)
-		-DKokkos_ARCH_HOPPER90=$(usex cuda)
-		#-DKokkos_ARCH_TURING75=$(usex cuda)
-		#-DKokkos_ARCH_PASCAL60=$(usex cuda)
-		#-DKokkos_ARCH_PASCAL61=$(usex cuda)
-		#-DKokkos_ARCH_AMPERE86=$(usex cuda)
-		#-DKokkos_ARCH_AMPERE80=$(usex cuda)
-		#-DKokkos_ARCH_VOLTA70=$(usex cuda)
-		#-DKokkos_ARCH_ADA89=$(usex cuda)
+		-DKokkos_ENABLE_SYCL=$(usex oneapi)
+		-DKokkos_ENABLE_HIP=$(usex hip)
 		-DKokkos_ENABLE_HWLOC=ON
 		#-DPKG_KOKKOS=$(usex kokkos)
 		#$(use kokkos && echo -DEXTERNAL_KOKKOS=ON)
@@ -155,6 +249,20 @@ src_configure() {
 	else
 		mycmakeargs+=( -DPKG_GPU=OFF )
 	fi
+
+	# Helper to uppercase arch string
+	_kokkos_flag() {
+		echo "${1}" | tr '[:lower:]' '[:upper:]'
+	}
+
+	# Hosts
+	for arch in ${KOKKOS_IUSE_HOST}; do
+		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag ${arch})=$(usex kokkos_host_${arch}) )
+	done
+	for gpu in ${KOKKOS_IUSE_GPU_NVIDIA} ${KOKKOS_IUSE_GPU_AMD} ${KOKKOS_IUSE_GPU_INTEL}; do
+		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag ${gpu})=$(usex kokkos_gpu_${gpu}) )
+	done
+
 	cmake_src_configure
 	if use python; then
 		pushd ../python || die
