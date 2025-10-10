@@ -21,14 +21,17 @@ convert_month() {
 	echo ${months[${1#0}]}
 }
 
-MY_PV="$((10#${PV:6:2}))$(convert_month ${PV:4:2})${PV:0:4}"
-MY_P="${PN}-patch_${MY_PV}"
+MY_RELTYPE="patch"
+
+MY_PV="$((10#${PV:6:2}))$(convert_month ${PV:4:2})${PV:0:4}${PV:8}"
+MY_PV="${MY_PV/_p/_update}"
+MY_P="${PN}-${MY_RELTYPE}_${MY_PV}"
 TABGAP_COMMIT_ID="6e04418f7ca5ad17c12aeaeb05c0f2b1517a341b"
 
 DESCRIPTION="Large-scale Atomic/Molecular Massively Parallel Simulator"
 HOMEPAGE="https://www.lammps.org"
 SRC_URI="
-	https://github.com/lammps/lammps/archive/refs/tags/patch_${MY_PV}.tar.gz
+	https://github.com/lammps/lammps/archive/refs/tags/${MY_RELTYPE}_${MY_PV}.tar.gz
 	test? (
 		https://github.com/google/googletest/archive/release-1.12.1.tar.gz -> ${PN}-gtest-1.12.1.tar.gz
 	)
@@ -40,7 +43,13 @@ S="${WORKDIR}/${MY_P}/cmake"
 
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~amd64 ~x86"
+if [[ ${MY_RELTYPE} == patch ]]; then
+    KEYWORDS="~amd64 ~x86"
+elif [[ ${MY_RELTYPE} == stable ]]; then
+    KEYWORDS="amd64 x86"
+else
+    KEYWORDS=""
+fi
 IUSE="cuda examples +extra gzip hip lammps-memalign mpi opencl +openmp +python test oneapi tabgap"
 
 # Based on https://docs.lammps.org/Build_extras.html#kokkos
@@ -141,7 +150,10 @@ RDEPEND="
 	virtual/lapack
 	sci-libs/fftw:3.0=
 	sci-libs/netcdf:=
-	cuda? ( >=dev-util/nvidia-cuda-toolkit-4.2.9-r1:= )
+	cuda? (
+		>=dev-util/nvidia-cuda-toolkit-4.2.9-r1:=
+		x11-drivers/nvidia-drivers
+	)
 	opencl? ( virtual/opencl )
 	hip? (
 		dev-util/hip:=
