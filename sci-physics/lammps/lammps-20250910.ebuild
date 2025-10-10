@@ -26,7 +26,7 @@ MY_RELTYPE="patch"
 MY_PV="$((10#${PV:6:2}))$(convert_month ${PV:4:2})${PV:0:4}${PV:8}"
 MY_PV="${MY_PV/_p/_update}"
 MY_P="${PN}-${MY_RELTYPE}_${MY_PV}"
-TABGAP_COMMIT_ID="6e04418f7ca5ad17c12aeaeb05c0f2b1517a341b"
+#TABGAP_COMMIT_ID="6e04418f7ca5ad17c12aeaeb05c0f2b1517a341b"
 
 DESCRIPTION="Large-scale Atomic/Molecular Massively Parallel Simulator"
 HOMEPAGE="https://www.lammps.org"
@@ -35,10 +35,11 @@ SRC_URI="
 	test? (
 		https://github.com/google/googletest/archive/release-1.12.1.tar.gz -> ${PN}-gtest-1.12.1.tar.gz
 	)
-	tabgap? (
-		https://gitlab.com/jezper/tabgap/-/archive/${TABGAP_COMMIT_ID}/tabgap-${TABGAP_COMMIT_ID}.tar.gz -> tabgap.tar.gz
-	)
-"
+	"
+#	tabgap? (
+#		https://gitlab.com/jezper/tabgap/-/archive/${TABGAP_COMMIT_ID}/tabgap-${TABGAP_COMMIT_ID}.tar.gz -> tabgap.tar.gz
+#	)
+#""
 S="${WORKDIR}/${MY_P}/cmake"
 
 LICENSE="GPL-2"
@@ -50,7 +51,9 @@ elif [[ ${MY_RELTYPE} == stable ]]; then
 else
     KEYWORDS=""
 fi
-IUSE="cuda examples +extra gzip hip lammps-memalign mpi opencl +openmp +python test oneapi tabgap"
+#Tabgap is not updated for the patch version of lammps
+IUSE="cuda examples +extra gzip hip lammps-memalign mpi opencl +openmp +python test oneapi" #  tabgap"
+
 
 # Based on https://docs.lammps.org/Build_extras.html#kokkos
 KOKKOS_IUSE_HOST="
@@ -207,9 +210,9 @@ src_prepare() {
 		mkdir "${BUILD_DIR}/_deps"
 		cp "${DISTDIR}/${PN}-gtest-1.12.1.tar.gz" "${BUILD_DIR}/_deps/release-1.12.1.tar.gz"
 	fi
-	if use tabgap; then
-		cp -a  "${WORKDIR}/tabgap-${TABGAP_COMMIT_ID}/lammps/." "${WORKDIR}/${MY_P}/src" || die
-	fi
+	#if use tabgap; then
+	#	cp -a  "${WORKDIR}/tabgap-${TABGAP_COMMIT_ID}/lammps/." "${WORKDIR}/${MY_P}/src" || die
+	#fi
 }
 
 src_configure() {
