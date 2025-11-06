@@ -117,6 +117,9 @@ src_configure() {
 
 	use debug && myopt="debug" || myopt="opt"
 
+	# OpenMPI needs mpi include paths set explicitly
+	use mpi && FCFLAGS="${FCFLAGS} -I/usr/include" && FFLAGS="${FFLAGS} -I/usr/include" || true
+
 	# environmental variables expected by petsc during build
 
 	export PETSC_DIR="${S}"
@@ -135,13 +138,13 @@ src_configure() {
 	econf \
 		scrollOutput=1 \
 		AR="${AR}" \
-		CFLAGS="${CFLAGS} -fPIC" \
-		CPPFLAGS="${CPPFLAGS}" \
-		CXXFLAGS="${CXXFLAGS} -fPIC" \
-		CXXOPTFLAGS="${CXXFLAGS} -fPIC" \
-		FCFLAGS="${FCFLAGS} -fPIC" \
-		FFLAGS="${FFLAGS} -fPIC" \
-		LDFLAGS="${LDFLAGS}" \
+		CFLAGS+="${CFLAGS} -fPIC" \
+		CPPFLAGS+="${CPPFLAGS}" \
+		CXXFLAGS+="${CXXFLAGS} -fPIC" \
+		CXXOPTFLAGS+="${CXXFLAGS} -fPIC" \
+		FCFLAGS+="${FCFLAGS} -fPIC" \
+		FFLAGS+="${FFLAGS} -fPIC" \
+		LDFLAGS+="${LDFLAGS}" \
 		MAKEFLAGS="${MAKEFLAGS}" \
 		RANLIB="${RANLIB}" \
 		--prefix="${EPREFIX}/usr/$(get_libdir)/petscdir/" \
