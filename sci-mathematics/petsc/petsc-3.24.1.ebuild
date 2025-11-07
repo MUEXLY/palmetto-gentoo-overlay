@@ -159,7 +159,7 @@ src_configure() {
 		--with-single-library \
 		--with-windows-graphics=0 \
 		$(petsc_enable cuda cudac) \
-		$(use cuda && echo "--with-cudac=nvcc")
+		$(use cuda && echo "--with-cudac=nvcc") \
 		$(petsc_enable debug debugging) \
 		$(petsc_enable fortran) \
 		$(petsc_enable mpi) \
@@ -175,6 +175,8 @@ src_configure() {
 		$(petsc_with scotch ptscotch /usr/include/scotch [-lptesmumps,-lptscotch,-lptscotcherr,-lscotch,-lscotcherr]) \
 		$(petsc_with mumps scalapack /usr/include/scalapack -lscalapack) \
 		$(petsc_with mumps mumps /usr/include [-lcmumps,-ldmumps,-lsmumps,-lzmumps,-lmumps_common,-lpord]) \
+		$(petsc_with metis parmetis /usr/include -lparmetis) \
+		$(petsc_with metis metis /usr/include -lmetis) \
 		$(use fortran && echo "$(petsc_select mpi fc mpif77 $(tc-getF77))") \
 		$(use int64 && echo "--with-index-size=64") \
 		$(use_with boost) \
