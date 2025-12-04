@@ -159,7 +159,7 @@ RDEPEND="
 		dev-util/hip:=
 		sci-libs/hipCUB:=
 	)
-	oneapi? ( dev-libs/intel-compute-runtime:=[l0] )
+	oneapi? ( sys-devel/oneDPL )
 	dev-cpp/eigen:3
 	"
 	# Kokkos-3.5 not in tree atm
