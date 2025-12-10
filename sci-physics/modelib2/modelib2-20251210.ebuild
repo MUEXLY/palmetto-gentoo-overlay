@@ -10,11 +10,6 @@ CMAKE_MAKEFILE_GENERATOR=emake
 
 inherit git-r3 cmake
 
-convert_month() {
-	local months=( "" Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec )
-	echo ${months[${1#0}]}
-}
-
 DESCRIPTION="The Mechanics of Defects Evolution Library 2 (MoDELib2)"
 HOMEPAGE="https://github.com/giacomopo/MoDELib2"
 EGIT_REPO_URI="https://github.com/giacomopo/MoDELib2.git"
@@ -27,17 +22,10 @@ KEYWORDS="**" # live ebuild
 # source directory
 S="${WORKDIR}/MoDELib2"
 
-IUSE="mpi opencl +openmp +python"
+IUSE="opencl +openmp +python"
 
 RDEPEND="
-    sys-libs/zlib
-    mpi? (
-        virtual/mpi
-        sci-libs/hdf5:=[mpi]
-    )
-    python? ( ${PYTHON_DEPS} )
     sci-libs/fftw:3.0=
-    sci-libs/netcdf:=
     dev-cpp/eigen:3
     dev-libs/boost
     sci-libs/suitesparse
@@ -61,11 +49,9 @@ src_configure() {
 	local mycmakeargs=(
 		-DCMAKE_INSTALL_SYSCONFDIR="${EPREFIX}/etc"
 		-DBUILD_SHARED_LIBS=ON
-		-DBUILD_MPI=$(usex mpi)
 		-DFFT=FFTW3
 		-DPKG_OPENMP=$(usex openmp)
 		-DPKG_PYTHON=$(usex python)
-		-DPKG_MPIIO=$(usex mpi)
 	)
 
 	cmake_src_configure
