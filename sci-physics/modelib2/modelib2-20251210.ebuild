@@ -66,7 +66,13 @@ src_compile() {
 #	cmake_src_test
 #}
 
-#src_install() {
-#	cmake_src_install
-#}
+src_install() {
+    # libraries
+    insinto /usr/$(get_libdir)
+    doins "${BUILD_DIR}"/src/*.so* "${BUILD_DIR}"/src/*.a
+
+    # executables
+    into /usr
+    dobin "${BUILD_DIR}"/bin/*
+}
 
