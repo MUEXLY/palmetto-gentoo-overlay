@@ -1,8 +1,6 @@
 # Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-# This package needs >=dev-libs/boost-1.89.0
-
 EAPI=8
 
 PYTHON_COMPAT=( python3_{10..14} )
@@ -44,7 +42,6 @@ src_prepare() {
     cmake_src_prepare
 }
 
-
 src_configure() {
     local mycmakeargs=(
         -DCMAKE_C_COMPILER="${CC}"
@@ -62,17 +59,13 @@ src_compile() {
 	cmake_src_compile
 }
 
-#src_test() {
-#	cmake_src_test
-#}
-
 src_install() {
-    # libraries
+    # shared library → usr/lib64 (or lib on x86)
     insinto /usr/$(get_libdir)
-    doins "${BUILD_DIR}"/src/*.so* "${BUILD_DIR}"/src/*.a
+    doins "${BUILD_DIR}"/libMoDELib.so
 
-    # executables
-    into /usr
-    dobin "${BUILD_DIR}"/bin/*
+    # executables → usr/bin
+    dobin "${BUILD_DIR}"/tools/DDomp/DDomp
+    dobin "${BUILD_DIR}"/tools/MicrostructureGenerator/microstructureGenerator
 }
 
