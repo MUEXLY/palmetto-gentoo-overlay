@@ -42,6 +42,7 @@ src_prepare() {
     cmake_src_prepare
 }
 
+
 src_configure() {
     local mycmakeargs=(
         -DCMAKE_C_COMPILER="${CC}"
@@ -51,6 +52,9 @@ src_configure() {
         -DFFT=FFTW3
         -DPKG_OPENMP=$(usex openmp)
         -DPKG_PYTHON=$(usex python)
+		# link the required shared libs (order matters)
+        -DCMAKE_EXE_LINKER_FLAGS="-lcholmod -lumfpack -lfftw3"
+        -DCMAKE_SHARED_LINKER_FLAGS="-lcholmod -lumfpack -lfftw3"
     )
 	cmake_src_configure
 }
@@ -60,12 +64,15 @@ src_compile() {
 }
 
 src_install() {
-    # shared library → usr/lib64 (or lib on x86)
-    insinto /usr/$(get_libdir)
-    doins "${BUILD_DIR}"/libMoDELib.so
-
-    # executables → usr/bin
-    dobin "${BUILD_DIR}"/tools/DDomp/DDomp
-    dobin "${BUILD_DIR}"/tools/MicrostructureGenerator/microstructureGenerator
+	# copy the build directory to /opt
+    insinto /opt/
+    doins -r "${BUILD_DIR}"
 }
 
+pkg_postinst() {
+	# fix permissions
+    chmod 0755 "${EPREFIX}"/opt/"${P}"_build/tools/MicrostructureGenerator/microstructureGenerator
+    chmod 0755 "${EPREFIX}"/opt/"${P}"_build/tools/DDomp/DDomp
+    chmod 0755 "${EPREFIX}"/opt/"${P}"_build/libMoDELib.so
+    chmod 0755 "${EPREFIX}"/opt/"${P}"_build/tools/pyMoDELib/pyMoDELib.cpython-314-x86_64-linux-gnu.so
+}
