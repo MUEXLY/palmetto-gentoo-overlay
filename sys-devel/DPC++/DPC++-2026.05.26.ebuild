@@ -27,6 +27,7 @@ VC_INTR_COMMIT="4fc83e12979096db72c129bd432238d5ca397e4d"
 # This one can be unbundled I think
 UMF_PV="1.1.0"
 NIGHTLY_VER="nightly-${PV//./-}"
+IFS='.' read -r PV_YEAR PV_MONTH PV_DAY <<< "${PV}"
 
 # From sycl/cmake/modules/FetchEmhash.cmake
 EMHASH_COMMIT="5e131ba09a5290823fe71099d9c35eb5df5345b6"
@@ -113,6 +114,9 @@ src_configure() {
 		-DFETCHCONTENT_SOURCE_DIR_EMHASH="${WORKDIR}/emhash-${EMHASH_COMMIT}"
 		-DFETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK="${WORKDIR}/unified-memory-framework-${UMF_PV}"
 		-DSYCL_COMPILER_VERSION="${PV}"
+		-DDPCPP_VERSION_MAJOR="${PV_YEAR}"
+		-DDPCPP_VERSION_MINOR="${PV_MONTH}"
+		-DDPCPP_VERSION_PATCH="${PV_DAY}"
 		# The sycl part of the build system insists on installing during compiling
 		# Install it to some temporary directory
 		-DCMAKE_INSTALL_PREFIX="${BUILD_DIR}/install"
