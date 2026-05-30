@@ -82,33 +82,39 @@ PATCHES=(
 	"${FILESDIR}/DPC++-6.3.0-zstd.patch"
 )
 
+
 src_configure() {
 	# Extracted from buildbot/configure.py
+	local EXTERNAL_PROJECTS="sycl;llvm-spirv;opencl;xpti;xptifw;libdevice;sycl-jit"
 	local mycmakeargs=(
 		-DLLVM_ENABLE_ASSERTIONS=ON
-		-DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS// /;}"
-		-DLLVM_EXTERNAL_PROJECTS="opencl;sycl-jit;sycl;unified-runtime;llvm-spirv;libdevice;xpti;xptifw"
+		-DLLVM_APPEND_VC_REV=OFF
+		-DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS// /;};SPIRV"
+		-DLLVM_EXTERNAL_PROJECTS="${EXTERNAL_PROJECTS}"
 		-DLLVM_EXTERNAL_SYCL_SOURCE_DIR="${S}/sycl"
+		-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR="${S}/sycl-jit"
 		-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="${S}/llvm-spirv"
 		-DLLVM_EXTERNAL_XPTI_SOURCE_DIR="${S}/xpti"
 		-DXPTI_SOURCE_DIR="${S}/xpti"
 		-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR="${S}/xptifw"
 		-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR="${S}/libdevice"
-		-DLLVM_ENABLE_PROJECTS="clang;sycl-jit;sycl;llvm-spirv;opencl;libdevice;xpti;xptifw"
+		-DLLVM_ENABLE_PROJECTS="clang;lld;${EXTERNAL_PROJECTS}"
 		-DLLVM_BUILD_TOOLS=ON
+		-DSYCL_ENABLE_EXTENSION_JIT=ON
+		-DUR_BUILD_ADAPTER_OFFLOAD=ON
 		-DSYCL_ENABLE_WERROR=OFF
 		-DSYCL_INCLUDE_TESTS="$(usex test)"
 		-DCLANG_INCLUDE_TESTS="$(usex test)"
 		-DLLVM_INCLUDE_TESTS="$(usex test)"
 		-DLLVM_SPIRV_INCLUDE_TESTS="$(usex test)"
+		-DUR_BUILD_TESTS="$(usex test)"
 		-DLLVM_ENABLE_DOXYGEN="$(usex doc)"
 		-DLLVM_ENABLE_SPHINX="$(usex doc)"
 		-DLLVM_USE_SPLIT_DWARF=OFF
 		-DLLVM_BUILD_DOCS="$(usex doc)"
 		-DSYCL_ENABLE_XPTI_TRACING=ON
-		-DLLVM_ENABLE_LLD=OFF
 		-DXPTI_ENABLE_WERROR=OFF
-		-DSYCL_ENABLE_BACKENDS="level_zero;opencl;$(usev hip);$(usev cuda)"
+		-DSYCL_ENABLE_BACKENDS="level_zero;level_zero_v2;opencl;offload;$(usev hip);$(usev cuda)"
 		-DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR="${ESYSROOT}/usr"
 		-DFETCHCONTENT_SOURCE_DIR_VC-INTRINSICS="${WORKDIR}/vc-intrinsics-${VC_INTR_COMMIT}"
 		-DFETCHCONTENT_SOURCE_DIR_EMHASH="${WORKDIR}/emhash-${EMHASH_COMMIT}"
@@ -117,12 +123,18 @@ src_configure() {
 		-DDPCPP_VERSION_MAJOR="${PV_YEAR}"
 		-DDPCPP_VERSION_MINOR="${PV_MONTH}"
 		-DDPCPP_VERSION_PATCH="${PV_DAY}"
+		-DLLVM_ENABLE_RUNTIMES="openmp;offload"
 		# The sycl part of the build system insists on installing during compiling
 		# Install it to some temporary directory
 		-DCMAKE_INSTALL_PREFIX="${BUILD_DIR}/install"
 		-DCMAKE_INSTALL_MANDIR="${BUILD_DIR}/install/share/man"
 		-DCMAKE_INSTALL_INFODIR="${BUILD_DIR}/install/share/info"
 		-DCMAKE_INSTALL_DOCDIR="${BUILD_DIR}/install/share/doc/${PF}"
+		-DUR_OFFLOAD_INSTALL_DIR="${BUILD_DIR}/install"
+		-DUR_OFFLOAD_INCLUDE_DIR="${BUILD_DIR}/install/include"
+		# Since its built here, it will try to use prev install's version of UMF
+		-DUR_USE_EXTERNAL_UMF=OFF
+		-DBUILD_SHARED_LIBS=OFF
 	)
 
 	if use hip; then
@@ -148,6 +160,8 @@ src_configure() {
 }
 
 src_compile() {
+	# Need offload before unified-runtime can be compiled
+	cmake_build runtimes/install
 	# Build sycl (this also installs some stuff already)
 	cmake_build deploy-sycl-toolchain
 
@@ -171,8 +185,8 @@ src_install() {
 	mv "${BUILD_DIR}/install"/* "${ED}/${LLVM_INTEL_DIR}" || die
 
 	# Convienence symlinks
-	dosym "${LLVM_INTEL_DIR}/bin/clang" "/usr/bin/icx"
-	dosym "${LLVM_INTEL_DIR}/bin/clang++" "/usr/bin/icpx"
+	dosym -r "${LLVM_INTEL_DIR}/bin/clang" "/usr/bin/icx"
+	dosym -r "${LLVM_INTEL_DIR}/bin/clang++" "/usr/bin/icpx"
 
 	# Copied from llvm ebuild, put env file last so we don't overwrite main llvm/clang
 	newenvd - "60llvm-intel" <<-_EOF_
