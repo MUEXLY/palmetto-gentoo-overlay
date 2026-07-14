@@ -103,6 +103,7 @@ KOKKOS_IUSE_GPU_NVIDIA="
 	turing75
 	ampere80
 	ampere86
+	ampere87
 	ada89
 	hopper90
 	blackwell100
