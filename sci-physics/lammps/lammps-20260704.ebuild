@@ -7,6 +7,7 @@ PYTHON_COMPAT=( python3_{10..14} )
 DISTUTILS_OPTIONAL=1
 DISTUTILS_USE_PEP517=setuptools
 CMAKE_MAKEFILE_GENERATOR=emake
+
 # Doc building insists on fetching mathjax
 # DOCS_BUILDER="doxygen"
 # DOCS_DEPEND="
@@ -14,7 +15,7 @@ CMAKE_MAKEFILE_GENERATOR=emake
 # 	dev-libs/mathjax
 # "
 
-inherit cmake fortran-2 distutils-r1 # docs
+inherit cmake fortran-2 distutils-r1 multibuild # docs
 
 convert_month() {
 	local months=( "" Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec )
@@ -84,6 +85,7 @@ KOKKOS_IUSE_HOST="
 	zen5
 	riscv_sg2042
 	riscv_rva22v
+	riscv_u74mc
 "
 
 KOKKOS_IUSE_GPU_NVIDIA="
@@ -105,6 +107,7 @@ KOKKOS_IUSE_GPU_NVIDIA="
 	hopper90
 	blackwell100
 	blackwell120
+	blackwell121
 "
 KOKKOS_IUSE_GPU_AMD="
 	amd_gfx906
@@ -183,7 +186,6 @@ REQUIRED_USE="
 	python? ( ${PYTHON_REQUIRED_USE} )
 	?? ( cuda opencl hip oneapi )
 	?? ( ${KOKKOS_IUSE_HOST_EXPANDED} )
-	?? ( ${KOKKOS_IUSE_GPU_NVIDIA_EXPANDED} ${KOKKOS_IUSE_GPU_AMD_EXPANDED} ${KOKKOS_IUSE_GPU_INTEL_EXPANDED} )
 "
 
 # NVIDIA: require cuda OR hip
@@ -201,8 +203,25 @@ for gpu in ${KOKKOS_IUSE_GPU_INTEL}; do
 	REQUIRED_USE+=" kokkos_gpu_${gpu}? ( oneapi )"
 done
 
-src_prepare() {
-	sed -i '/set(CMAKE_TUNE_DEFAULT.*-Xcudafe/s/^/# /' "${WORKDIR}/${MY_P}/cmake/CMakeLists.txt" || die
+
+pkg_setup() {
+	lammps_variants=(
+		cpu
+	)
+	for gpu in ${KOKKOS_IUSE_GPU_NVIDIA} ${KOKKOS_IUSE_GPU_AMD} ${KOKKOS_IUSE_GPU_INTEL}; do
+		if use kokkos_gpu_${gpu}; then
+			lammps_variants+=( "${gpu}" )
+		fi
+	done
+	elog "Variants: ${lammps_variants[@]}"
+	export lammps_variants
+	if use oneapi; then
+		export CC=icx
+		export CXX=icpx
+	fi
+}
+
+my_src_prepare() {
 	cmake_src_prepare
 	if use python; then
 		pushd ../python || die
@@ -216,13 +235,17 @@ src_prepare() {
 	#if use tabgap; then
 	#	cp -a  "${WORKDIR}/tabgap-${TABGAP_COMMIT_ID}/lammps/." "${WORKDIR}/${MY_P}/src" || die
 	#fi
-	if use oneapi; then
-		export CC=icx
-		export CXX=icpx
-	fi
+
 }
 
-src_configure() {
+src_prepare() {
+	sed -i '/set(CMAKE_TUNE_DEFAULT.*-Xcudafe/s/^/# /' "${WORKDIR}/${MY_P}/cmake/CMakeLists.txt" || die
+	local MULTIBUILD_VARIANTS=( ${lammps_variants[@]} )
+	multibuild_foreach_variant my_src_prepare
+
+}
+
+my_src_configure() {
 	local mycmakeargs=(
 		-DCMAKE_INSTALL_SYSCONFDIR="${EPREFIX}/etc"
 		-DBUILD_SHARED_LIBS=ON
@@ -245,15 +268,10 @@ src_configure() {
 		-DPKG_GRANULAR=ON
 		-DPKG_KSPACE=ON
 		-DFFT=FFTW3
-		#-DPKG_KOKKOS=OFF
 		-DPKG_KOKKOS=ON
 		-DKokkos_ENABLE_OPENMP=$(usex openmp)
-		-DKokkos_ENABLE_CUDA=$(usex cuda)
-		-DKokkos_ENABLE_SYCL=$(usex oneapi)
-		-DKokkos_ENABLE_HIP=$(usex hip)
+
 		-DKokkos_ENABLE_HWLOC=ON
-		#-DPKG_KOKKOS=$(usex kokkos)
-		#$(use kokkos && echo -DEXTERNAL_KOKKOS=ON)
 		-DPKG_MANYBODY=ON
 		-DPKG_MC=ON
 		-DPKG_MEAM=ON
@@ -269,28 +287,34 @@ src_configure() {
 		-DPKG_PYTHON=$(usex python)
 		-DPKG_MPIIO=$(usex mpi)
 		-DPKG_VORONOI=ON
+		-DKokkos_ENABLE_SERIAL=ON
+		-DLAMMPS_MACHINE="${MULTIBUILD_ID}"
 	)
-
-	if use cuda || use opencl || use hip; then
-		mycmakeargs+=( -DPKG_GPU=ON )
-		use cuda && mycmakeargs+=( -DGPU_API=cuda )
-		use opencl && mycmakeargs+=( -DGPU_API=opencl -DUSE_STATIC_OPENCL_LOADER=OFF )
-		use hip && mycmakeargs+=( -DGPU_API=hip -DHIP_PATH="${EPREFIX}/usr" )
-	else
-		mycmakeargs+=( -DPKG_GPU=OFF )
-	fi
 
 	# Helper to uppercase arch string
 	_kokkos_flag() {
 		echo "${1}" | tr '[:lower:]' '[:upper:]'
 	}
 
+	if [[ "${MULTIBUILD_VARIANT}" == "cpu" ]]; then
+		mycmakeargs+=( -DPKG_GPU=OFF )
+	else
+		mycmakeargs+=(
+			-DPKG_GPU=ON
+			-DKokkos_ENABLE_CUDA=$(usex cuda)
+			-DKokkos_ENABLE_SYCL=$(usex oneapi)
+			-DKokkos_ENABLE_HIP=$(usex hip)
+		)
+		use cuda && mycmakeargs+=( -DGPU_API=cuda )
+		use opencl && mycmakeargs+=( -DGPU_API=opencl -DUSE_STATIC_OPENCL_LOADER=OFF )
+		use hip && mycmakeargs+=( -DGPU_API=hip -DHIP_PATH="${EPREFIX}/usr" )
+
+		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag "${MULTIBUILD_VARIANT}")=ON )
+	fi
+
 	# Hosts
 	for arch in ${KOKKOS_IUSE_HOST}; do
 		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag ${arch})=$(usex kokkos_host_${arch}) )
-	done
-	for gpu in ${KOKKOS_IUSE_GPU_NVIDIA} ${KOKKOS_IUSE_GPU_AMD} ${KOKKOS_IUSE_GPU_INTEL}; do
-		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag ${gpu})=$(usex kokkos_gpu_${gpu}) )
 	done
 
 	cmake_src_configure
@@ -301,7 +325,13 @@ src_configure() {
 	fi
 }
 
-src_compile() {
+src_configure() {
+	local MULTIBUILD_VARIANTS=( ${lammps_variants[@]} )
+	multibuild_foreach_variant my_src_configure
+}
+
+
+my_src_compile() {
 	cmake_src_compile
 	if use python; then
 		pushd ../python || die
@@ -310,7 +340,12 @@ src_compile() {
 	fi
 }
 
-src_test() {
+src_compile() {
+	local MULTIBUILD_VARIANTS=( ${lammps_variants[@]} )
+	multibuild_foreach_variant my_src_compile
+}
+
+my_src_test() {
 	cmake_src_test
 	if use python; then
 		pushd ../python || die
@@ -319,7 +354,12 @@ src_test() {
 	fi
 }
 
-src_install() {
+src_test(){
+	local MULTIBUILD_VARIANTS=( ${lammps_variants[@]} )
+	multibuild_foreach_variant my_src_test
+}
+
+my_src_install() {
 	cmake_src_install
 
 	if use opencl; then
@@ -331,6 +371,12 @@ src_install() {
 		distutils-r1_src_install
 		popd || die
 	fi
+
+}
+
+src_install(){
+	local MULTIBUILD_VARIANTS=( ${lammps_variants[@]} )
+	multibuild_foreach_variant my_src_install
 
 	if use examples; then
 		for d in examples bench; do
