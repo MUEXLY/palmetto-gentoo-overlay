@@ -1,0 +1,25 @@
+diff --git a/lib/kokkos/core/src/SYCL/Kokkos_SYCL.cpp b/lib/kokkos/core/src/SYCL/Kokkos_SYCL.cpp
+index 7a83f26584..a111733f72 100644
+--- a/lib/kokkos/core/src/SYCL/Kokkos_SYCL.cpp
++++ b/lib/kokkos/core/src/SYCL/Kokkos_SYCL.cpp
+@@ -15,7 +15,7 @@ import kokkos.core;
+ #else
+ #include <Kokkos_Core.hpp>
+ #endif
+-
++#include <iostream>
+ #include <impl/Kokkos_CheckUsage.hpp>
+ #include <impl/Kokkos_DeviceManagement.hpp>
+ #include <impl/Kokkos_Error.hpp>
+diff --git a/lib/kokkos/core/src/SYCL/Kokkos_SYCL_Instance.cpp b/lib/kokkos/core/src/SYCL/Kokkos_SYCL_Instance.cpp
+index 16eb33b5e8..dba3084869 100644
+--- a/lib/kokkos/core/src/SYCL/Kokkos_SYCL_Instance.cpp
++++ b/lib/kokkos/core/src/SYCL/Kokkos_SYCL_Instance.cpp
+@@ -14,6 +14,7 @@ import kokkos.core; // kokkos_malloc
+ 
+ #include <impl/Kokkos_CheckedIntegerOps.hpp>
+ #include <impl/Kokkos_Error.hpp>
++#include <iostream>
+ 
+ namespace Kokkos {
+ namespace Impl {

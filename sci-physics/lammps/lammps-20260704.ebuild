@@ -15,7 +15,7 @@ CMAKE_MAKEFILE_GENERATOR=emake
 # 	dev-libs/mathjax
 # "
 
-inherit cmake fortran-2 distutils-r1 multibuild # docs
+inherit cmake fortran-2 distutils-r1 multibuild toolchain-funcs flag-o-matic # docs
 
 convert_month() {
 	local months=( "" Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec )
@@ -42,6 +42,9 @@ SRC_URI="
 #	)
 #""
 S="${WORKDIR}/${MY_P}/cmake"
+PATCHES=(
+)
+
 
 LICENSE="GPL-2"
 SLOT="0"
@@ -209,17 +212,23 @@ pkg_setup() {
 	lammps_variants=(
 		cpu
 	)
-	for gpu in ${KOKKOS_IUSE_GPU_NVIDIA} ${KOKKOS_IUSE_GPU_AMD} ${KOKKOS_IUSE_GPU_INTEL}; do
+	for gpu in ${KOKKOS_IUSE_GPU_NVIDIA} ${KOKKOS_IUSE_GPU_AMD}; do
 		if use kokkos_gpu_${gpu}; then
-			lammps_variants+=( "${gpu}" )
+			lammps_variants+=(
+				"${gpu}"
+				"${gpu}_double"
+			)
 		fi
 	done
+	use oneapi && lammps_variants+=(
+		"intel_sycl"
+		"intel_sycl_double"
+	)
 	elog "Variants: ${lammps_variants[@]}"
 	export lammps_variants
-	if use oneapi; then
-		export CC=icx
-		export CXX=icpx
-	fi
+
+	export DEF_C_COMPILER="$(tc-getCC)"
+	export DEF_CXX_COMPILER="$(tc-getCXX)"
 }
 
 my_src_prepare() {
@@ -268,17 +277,15 @@ my_src_configure() {
 		-DPKG_EXTRA-PAIR=$(usex extra)
 		-DPKG_GRANULAR=ON
 		-DPKG_KSPACE=ON
-		-DFFT=FFTW3
 		-DPKG_KOKKOS=ON
+		-DPKG_OPENMP=$(usex openmp)
 		-DKokkos_ENABLE_OPENMP=$(usex openmp)
-
 		-DKokkos_ENABLE_HWLOC=ON
 		-DPKG_MANYBODY=ON
 		-DPKG_MC=ON
 		-DPKG_MEAM=ON
 		-DPKG_MISC=ON
 		-DPKG_MOLECULE=ON
-		-DPKG_OPENMP=$(usex openmp)
 		-DPKG_PERI=ON
 		-DPKG_QEQ=ON
 		-DPKG_REPLICA=ON
@@ -290,32 +297,61 @@ my_src_configure() {
 		-DPKG_VORONOI=ON
 		-DKokkos_ENABLE_SERIAL=ON
 		-DLAMMPS_MACHINE="${MULTIBUILD_ID}"
+		-DCMAKE_COLOR_DIAGNOSTICS=ON
 	)
 
 	# Helper to uppercase arch string
 	_kokkos_flag() {
-		echo "${1}" | tr '[:lower:]' '[:upper:]'
+		echo "${1%_double}" | tr '[:lower:]' '[:upper:]'
 	}
+
+	if [[ "${MULTIBUILD_VARIANT}" == intel_* ]]; then
+		export CC=icx
+		export CXX=icpx
+		mycmakeargs+=(
+			-DFFT_KOKKOS=MKL_GPU
+			-DFFT=MKL
+		)
+	else
+		export CC="${DEF_C_COMPILER}"
+		export CXX="${DEF_CXX_COMPILER}"
+	fi
+
 
 	if [[ "${MULTIBUILD_VARIANT}" == "cpu" ]]; then
 		mycmakeargs+=( -DPKG_GPU=OFF )
 	else
-		mycmakeargs+=(
+		[[ "${MULTIBUILD_VARIANT}" == intel_* ]] || mycmakeargs+=(
 			-DPKG_GPU=ON
+			-DKokkos_ARCH_$(_kokkos_flag "${MULTIBUILD_VARIANT}")=ON
+		)
+
+		mycmakeargs+=(
 			-DKokkos_ENABLE_CUDA=$(usex cuda)
 			-DKokkos_ENABLE_SYCL=$(usex oneapi)
 			-DKokkos_ENABLE_HIP=$(usex hip)
 		)
+
+		if [[ "${MULTIBUILD_VARIANT}" == *_double ]]; then
+			mycmakeargs+=(
+				-DGPU_PREC=mixed
+				-DKOKKOS_PREC=double
+			)
+		else
+			mycmakeargs+=(
+				-DGPU_PREC=single
+				-DKOKKOS_PREC=single
+			)
+		fi
+
 		use cuda && mycmakeargs+=( -DGPU_API=cuda )
 		use opencl && mycmakeargs+=( -DGPU_API=opencl -DUSE_STATIC_OPENCL_LOADER=OFF )
 		use hip && mycmakeargs+=( -DGPU_API=hip -DHIP_PATH="${EPREFIX}/usr" )
-
-		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag "${MULTIBUILD_VARIANT}")=ON )
 	fi
 
 	# Hosts
 	for arch in ${KOKKOS_IUSE_HOST}; do
-		mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag ${arch})=$(usex kokkos_host_${arch}) )
+		use kokkos_host_${arch} && mycmakeargs+=( -DKokkos_ARCH_$(_kokkos_flag ${arch})=ON )
 	done
 
 	cmake_src_configure
@@ -327,6 +363,8 @@ my_src_configure() {
 }
 
 src_configure() {
+	filter-lto
+	append-cxxflags -Wno-deprecated-declarations
 	local MULTIBUILD_VARIANTS=( ${lammps_variants[@]} )
 	multibuild_foreach_variant my_src_configure
 }
