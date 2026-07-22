@@ -325,6 +325,10 @@ my_src_configure() {
 			-DPKG_GPU=ON
 			-DKokkos_ARCH_$(_kokkos_flag "${MULTIBUILD_VARIANT}")=ON
 		)
+		use cuda && mycmakeargs+=(
+			-DFFT_KOKKOS=CUFFT
+			-DGPU_ARCH=sm_${MULTIBUILD_VARIANT//[^0-9]/}
+		)
 
 		mycmakeargs+=(
 			-DKokkos_ENABLE_CUDA=$(usex cuda)
