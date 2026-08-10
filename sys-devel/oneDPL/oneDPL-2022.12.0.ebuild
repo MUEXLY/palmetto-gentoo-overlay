@@ -26,7 +26,7 @@ RESTRICT="test"
 BDEPEND="virtual/pkgconfig"
 
 DEPEND="
-	sys-devel/DPC++:0/6
+	sys-devel/DPC++
 	dev-libs/level-zero
 	dev-cpp/tbb
 "
