@@ -276,7 +276,6 @@ my_src_configure() {
 		-DPKG_EXTRA-MOLECULE=$(usex extra)
 		-DPKG_EXTRA-PAIR=$(usex extra)
 		-DPKG_GRANULAR=ON
-		-DPKG_KSPACE=ON
 		-DPKG_KOKKOS=ON
 		-DPKG_OPENMP=$(usex openmp)
 		-DKokkos_ENABLE_OPENMP=$(usex openmp)
@@ -306,13 +305,20 @@ my_src_configure() {
 	}
 
 	if [[ "${MULTIBUILD_VARIANT}" == intel_* ]]; then
+		if [[ ! -v SYCL_FLAGS_ALREADY_SET ]]; then
+			append-cxxflags -fno-sycl-rdc
+			append-ldflags -flink-huge-device-code -fsycl-max-parallel-link-jobs=$(nproc)
+			export SYCL_FLAGS_ALREADY_SET=1
+		fi
 		export CC=icx
-		export CXX=icpx
+		export CXX=dpc++
 		mycmakeargs+=(
-			-DFFT_KOKKOS=MKL_GPU
-			-DFFT=MKL
+			-DPKG_KSPACE=OFF
 		)
 	else
+		mycmakeargs+=(
+			-DPKG_KSPACE=ON
+		)
 		export CC="${DEF_C_COMPILER}"
 		export CXX="${DEF_CXX_COMPILER}"
 	fi
