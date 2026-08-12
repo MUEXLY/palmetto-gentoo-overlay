@@ -51,7 +51,7 @@ src_configure() {
 	local myconf
 
 	if use mpi; then
-		myconf="${myconf} --with-mpi=/usr/bin/mpi"
+		myconf="${myconf} --with-mpi=${EPREFIX}/usr/bin/mpi"
 	else
 		myconf="--without-mpi"
 	fi
