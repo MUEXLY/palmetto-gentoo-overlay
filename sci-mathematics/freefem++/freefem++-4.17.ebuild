@@ -3,7 +3,7 @@
 
 EAPI=8
 
-inherit autotools toolchain-funcs
+inherit autotools toolchain-funcs flag-o-matic
 
 DESCRIPTION="Solve PDEs using FEM on 2d and 3d domains"
 HOMEPAGE="https://freefem.org/"
@@ -66,6 +66,7 @@ src_configure() {
 		myconf="${myconf} --with-slepc-include=${EPREFIX}/usr/$(get_libdir)/slepcdir/include"
     fi
 
+    append-cppflags "-I${EPREFIX}/usr/include/superlu"
 
 	econf \
 		--disable-download \
